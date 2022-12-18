@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planning Poker</title>
+
+  <style>
+    body {
+      background: #dddddd;
+      margin: 0;
+      padding: 0;
+      margin-left: 20px;
+    }
+  </style>
+
+<body>
+  <h1>Planning Poker</h1>
+  <h2 id='title'>新規 Room 作成</h2>
+  <div>Room 名: <input id="name"></input></div>
+  <div><button id="create">作成</button></div>
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-auth.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0UkerTkbGgzJ1kWXndW-Qvlnaj49PKWI",
+      authDomain: "scrum-poker-d339a.firebaseapp.com",
+      projectId: "scrum-poker-d339a",
+      storageBucket: "scrum-poker-d339a.appspot.com",
+      messagingSenderId: "302198913331",
+      appId: "1:302198913331:web:f03f341a9d6da31e6b6646"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let uid = null;
+    signInAnonymously(auth).catch(console.error);
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        uid = user.uid;
+        console.log("signed in: " + uid);
+      }
+    });
+
+    // onCreate
+    async function onCreate() {
+      const name = document.querySelector('#name').value;
+      const docRef = await addDoc(collection(db, "rooms"), {
+        isOpened: false,
+        name: name,
+        clearedAt: serverTimestamp()
+      });
+      window.location.href = "./?id=" + docRef.id;
+    }
+    document.getElementById("create").addEventListener("click", onCreate);
+
+    function createDiv(className, innerText) {
+      let elm = document.createElement("div");
+      elm.classList.add(className);
+      elm.innerText = innerText;
+      return elm;
+    }
+  </script>
+</body>
+
+</html>

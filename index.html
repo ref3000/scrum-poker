@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planning Poker</title>
+
+  <style>
+    body {
+      background: #dddddd;
+      margin: 0;
+      padding: 0;
+      margin-left: 20px;
+    }
+
+    .field {
+      display: flex;
+      gap: 0px 10px;
+      height: 260px;
+    }
+
+    /* The flip card container - set the width and height to whatever you want. We have added the border property to demonstrate that the flip itself goes out of the box on hover (remove perspective if you don't want the 3D effect */
+    .flip-card {
+      background-color: transparent;
+      width: 200px;
+      height: 240px;
+      border: 2px solid #dddddd;
+      perspective: 1000px;
+      /* Remove this if you don't want the 3D effect */
+    }
+
+    /* This container is needed to position the front and back side */
+    .flip-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.8s;
+      transform-style: preserve-3d;
+    }
+
+    /* Position the front and back side */
+    .flip-card-front,
+    .flip-card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      -webkit-backface-visibility: hidden;
+      /* Safari */
+      backface-visibility: hidden;
+      font-size: 40px;
+      font-weight: bold;
+    }
+
+    /* Style the front side (fallback if image is missing) */
+    .flip-card-front {
+      background-color: #bbb;
+      color: black;
+    }
+
+    /* Style the back side */
+    .flip-card-back {
+      background-color: dodgerblue;
+      color: white;
+      transform: rotateY(180deg);
+    }
+
+    .flip-card-icon {
+      width: 100%;
+      height: 100px;
+      background-size: auto 100%;
+      background-position: center center;
+      background-repeat: no-repeat;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Planning Poker</h1>
+  <h2 id='room'>NowLoading...</h2>
+  <div id='app'></div>
+  <div id='field' class="field"></div>
+  <div><button id="login">Google Login</button> <span id="status"></span></div>
+  <div>ユーザ名: <input id="name"></input></div>
+  <div>ポイント: <input id="value"></input></div>
+  <div><button id="post">投稿</button> ※ログイン状態で投稿すると、カードにプロフィール画像が表示されます</div>
+  <div><button id="open">open</button></div>
+  <div><button id="close">close</button></div>
+  <div><button id="clear">reset</button></div>
+  <br>
+  <a href="./select.html">新規 Room 作成</a>
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-auth.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0UkerTkbGgzJ1kWXndW-Qvlnaj49PKWI",
+      authDomain: "scrum-poker-d339a.firebaseapp.com",
+      projectId: "scrum-poker-d339a",
+      storageBucket: "scrum-poker-d339a.appspot.com",
+      messagingSenderId: "302198913331",
+      appId: "1:302198913331:web:f03f341a9d6da31e6b6646"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let uid = null;
+    let photoURL = null;
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        uid = user.uid;
+        photoURL = user.photoURL;
+        console.log(user)
+        document.querySelector('#status').innerText = photoURL ? user.displayName + " でログイン中" : "未ログイン";
+      } else {
+        signInAnonymously(auth).catch(console.error);
+      }
+    });
+
+    const params = (new URL(document.location)).searchParams;
+    const roomId = params.get('id');
+    if (!roomId) {
+      window.location.href = "./select.html";
+    }
+
+    let roomDoc = {};
+    let cardDocs = [];
+
+    // onPost
+    async function onPost() {
+      if (uid == null) throw "uid is null";
+      const name = document.querySelector('#name').value;
+      const value = document.querySelector('#value').value;
+      await setDoc(doc(db, "rooms/" + roomId + "/cards", uid), {
+        name: name,
+        value: value,
+        photoURL: photoURL,
+        updatedAt: serverTimestamp()
+      });
+    }
+    document.getElementById("post").addEventListener("click", onPost);
+
+    // onOpen
+    async function onOpen() {
+      await setDoc(doc(db, "rooms", roomId), {
+        isOpened: true
+      }, { merge: true });
+    }
+    document.getElementById("open").addEventListener("click", onOpen);
+
+    // onClose
+    async function onClose() {
+      await setDoc(doc(db, "rooms", roomId), {
+        isOpened: false
+      }, { merge: true });
+    }
+    document.getElementById("close").addEventListener("click", onClose);
+
+    // onClear
+    async function onClear() {
+      await setDoc(doc(db, "rooms", roomId), {
+        isOpened: false,
+        clearedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    document.getElementById("clear").addEventListener("click", onClear);
+
+
+    // onLogin
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+
+    async function onLogin() {
+      const auth = getAuth();
+      signInWithPopup(auth, provider).then(console.log).catch(console.error);
+    }
+    document.getElementById("login").addEventListener("click", onLogin);
+
+    // watching: room
+    onSnapshot(doc(db, "rooms", roomId), { includeMetadataChanges: false }, (doc) => {
+      const beforeDoc = roomDoc;
+      roomDoc = doc.data();
+      const beforeClearedMillis = beforeDoc.clearedAt ? beforeDoc.clearedAt.toMillis() : 0;
+      const afterClearedMillis = roomDoc.clearedAt ? roomDoc.clearedAt.toMillis() : 0;
+      if (beforeClearedMillis < afterClearedMillis) {
+        updateCards()
+      }
+      if (beforeDoc.isOpened != roomDoc.isOpened) {
+        const transform = roomDoc.isOpened ? "rotateY(180deg)" : "rotateY(0deg)";
+        const cards = document.querySelectorAll(".flip-card-inner");
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          setTimeout(() => { card.style.transform = transform; }, i * 100);
+        }
+      }
+      document.querySelector('#room').innerText = "Room: " + roomDoc.name;
+    });
+
+    // watching: cards
+    const cardsQuery = query(collection(db, "rooms/" + roomId + "/cards"), orderBy("updatedAt"));
+    onSnapshot(cardsQuery, { includeMetadataChanges: false }, (querySnapshot) => {
+      cardDocs = [];
+      querySnapshot.forEach((doc) => {
+        const cardDoc = doc.data();
+        cardDoc.id = doc.id;
+        cardDocs.push(cardDoc);
+      });
+      updateCards();
+    });
+
+    function updateCards() {
+      const field = document.getElementById("field");
+      field.replaceChildren();
+      for (let i = 0; i < cardDocs.length; i++) {
+        const cardDoc = cardDocs[i];
+        if (roomDoc.clearedAt < cardDoc.updatedAt) {
+          addCard(cardDoc);
+        }
+      }
+    }
+
+    function addCard(cardDoc) {
+      const transform = roomDoc.isOpened ? "rotateY(180deg)" : "rotateY(0deg)";
+      const field = document.getElementById("field");
+      const outer = createDiv("flip-card");
+      outer.style.border = (cardDoc.id == uid) ? "2px solid #ff0000" : "2px solid #dddddd";
+      const inner = createDiv("flip-card-inner");
+      inner.style.transform = transform;
+      const front = createDiv("flip-card-front");
+      const back = createDiv("flip-card-back");
+      const frontName = createDiv("flip-card-name", cardDoc.name);
+      const frontValue = createDiv("flip-card-value", "？");
+      const frontIcon = createDiv("flip-card-icon");
+      if (cardDoc.photoURL) frontIcon.style.backgroundImage = "url(" + cardDoc.photoURL + ")";
+      const backName = createDiv("flip-card-name", cardDoc.name);
+      const backValue = createDiv("flip-card-value", cardDoc.value);
+      const backIcon = createDiv("flip-card-icon");
+      if (cardDoc.photoURL) backIcon.style.backgroundImage = "url(" + cardDoc.photoURL + ")";
+      front.appendChild(frontName);
+      front.appendChild(frontValue);
+      front.appendChild(frontIcon);
+      back.appendChild(backName);
+      back.appendChild(backValue);
+      back.appendChild(backIcon);
+      inner.appendChild(front);
+      inner.appendChild(back);
+      outer.appendChild(inner);
+      field.appendChild(outer);
+    }
+
+    function createDiv(className, innerText) {
+      const elm = document.createElement("div");
+      elm.classList.add(className);
+      if (innerText) elm.innerText = innerText;
+      return elm;
+    }
+  </script>
+</body>
+
+</html>
